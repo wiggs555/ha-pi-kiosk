@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <gap>0</gap>
+    <windowSwitcher show="no"/>
+  </core>
+
+  <!-- No idle blanking helper is started; keep compositor idle config minimal. -->
+  <windowRules>
+    <!-- Maximize + undecorated = fullscreen look without blocking squeekboard. -->
+    <windowRule identifier="firefox*" serverDecoration="no">
+      <action name="Maximize"/>
+    </windowRule>
+    <windowRule identifier="Firefox*" serverDecoration="no">
+      <action name="Maximize"/>
+    </windowRule>
+    <windowRule identifier="org.mozilla.firefox*" serverDecoration="no">
+      <action name="Maximize"/>
+    </windowRule>
+  </windowRules>
+
+  <keyboard>
+    <!-- Avoid accidental session quit from the touch panel. -->
+    <keybind key="A-F4"/>
+    <keybind key="C-A-t"/>
+  </keyboard>
+
+  <mouse>
+    <doubleClickTime>500</doubleClickTime>
+  </mouse>
+</labwc_config>

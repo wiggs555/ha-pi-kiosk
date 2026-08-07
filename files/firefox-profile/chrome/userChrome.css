@@ -1,0 +1,8 @@
+/* Hide browser chrome so the panel looks like a dedicated wall display. */
+#TabsToolbar,
+#nav-bar,
+#PersonalToolbar,
+#titlebar,
+#navigator-toolbox {
+  visibility: collapse !important;
+}
