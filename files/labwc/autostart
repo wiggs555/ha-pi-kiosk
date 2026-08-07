@@ -1,0 +1,40 @@
+#!/bin/sh
+# labwc autostart — sourced environment from /etc/ha-pi-kiosk/config.env when present
+
+set -eu
+
+CONFIG=/etc/ha-pi-kiosk/config.env
+if [ -f "$CONFIG" ]; then
+  # shellcheck disable=SC1090
+  . "$CONFIG"
+fi
+
+DISPLAY_OUTPUT="${DISPLAY_OUTPUT:-DSI-1}"
+DISPLAY_ROTATION="${DISPLAY_ROTATION:-normal}"
+export KIOSK_URL="${KIOSK_URL:-https://home.whigham.me/?kiosk}"
+
+# Apply panel rotation for the official 7" DSI display
+case "$DISPLAY_ROTATION" in
+  normal|"")
+    ;;
+  90|180|270|flipped|flipped-90|flipped-180|flipped-270)
+    if command -v wlr-randr >/dev/null 2>&1; then
+      wlr-randr --output "$DISPLAY_OUTPUT" --transform "$DISPLAY_ROTATION" || true
+    fi
+    ;;
+  *)
+    echo "ha-pi-kiosk: unknown DISPLAY_ROTATION=$DISPLAY_ROTATION" >&2
+    ;;
+esac
+
+# On-screen keyboard (shows when a text field is focused)
+if command -v squeekboard >/dev/null 2>&1; then
+  squeekboard &
+fi
+
+# Home Assistant wall panel
+if [ -x /usr/local/bin/firefox-kiosk.sh ]; then
+  /usr/local/bin/firefox-kiosk.sh &
+elif [ -x "$HOME/.local/bin/firefox-kiosk.sh" ]; then
+  "$HOME/.local/bin/firefox-kiosk.sh" &
+fi

@@ -1,0 +1,33 @@
+[Unit]
+Description=Home Assistant kiosk (labwc)
+Documentation=file:///usr/local/share/ha-pi-kiosk/README.md
+After=network-online.target seatd.service systemd-user-sessions.service
+Wants=network-online.target
+Requires=seatd.service
+
+[Service]
+Type=simple
+User=__KIOSK_USER__
+Group=__KIOSK_USER__
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+WorkingDirectory=/home/__KIOSK_USER__
+
+Environment=XDG_RUNTIME_DIR=/run/user/__KIOSK_UID__
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_CURRENT_DESKTOP=labwc:wlroots
+Environment=MOZ_ENABLE_WAYLAND=1
+Environment=WLR_RENDERER=auto
+
+ExecStartPre=/bin/mkdir -p /run/user/__KIOSK_UID__
+ExecStartPre=/bin/chmod 700 /run/user/__KIOSK_UID__
+ExecStartPre=/bin/chown __KIOSK_USER__:__KIOSK_USER__ /run/user/__KIOSK_UID__
+ExecStart=/usr/bin/labwc -C /home/__KIOSK_USER__/.config/labwc
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
