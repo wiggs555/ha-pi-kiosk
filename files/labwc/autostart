@@ -32,6 +32,11 @@ if command -v squeekboard >/dev/null 2>&1; then
   squeekboard &
 fi
 
+# Dim after idle, then backlight off; touch wakes (wake tap is swallowed)
+if [ -x /usr/local/bin/display-idle.sh ]; then
+  /usr/local/bin/display-idle.sh &
+fi
+
 # Home Assistant wall panel
 if [ -x /usr/local/bin/firefox-kiosk.sh ]; then
   /usr/local/bin/firefox-kiosk.sh &
