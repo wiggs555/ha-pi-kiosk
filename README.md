@@ -11,6 +11,7 @@ On boot the Pi auto-logs in, starts a minimal **labwc** Wayland session, launche
 | HA `?kiosk` URL | Hides HA sidebar/header (requires HACS [Kiosk Mode](https://github.com/NemesisRE/kiosk-mode) on the server) |
 | Firefox maximized | Fullscreen look without compositor `--kiosk` (so the OSK still works) |
 | squeekboard | On-screen keyboard when a text field is focused |
+| Idle backlight | Dim after 2 min, off after 5 min; touch wakes (wake tap swallowed) |
 | SSH | Enabled for shell access |
 | Raspberry Pi Connect | Installed; you sign in once for remote shell/screen |
 
@@ -45,6 +46,12 @@ KIOSK_URL=https://home.whigham.me/?kiosk
 DISPLAY_OUTPUT=DSI-1
 DISPLAY_ROTATION=normal    # normal | 90 | 180 | 270
 KIOSK_USER=                # defaults to the user running setup.sh
+
+# Backlight idle (sysfs; official 7" DSI)
+IDLE_ENABLED=1
+IDLE_DIM_SEC=120           # dim after 2 minutes
+IDLE_OFF_SEC=300           # backlight off after 5 minutes
+IDLE_DIM_PERCENT=20
 ```
 
 Use a specific dashboard if you want, for example:
@@ -53,7 +60,24 @@ Use a specific dashboard if you want, for example:
 KIOSK_URL=https://home.whigham.me/lovelace/home?kiosk
 ```
 
-After setup, the live copy lives at `/etc/ha-pi-kiosk/config.env`. Edit that and reboot to apply URL/rotation changes.
+After setup, the live copy lives at `/etc/ha-pi-kiosk/config.env`. Edit that and reboot to apply URL/rotation/idle changes.
+
+### Display idle / wake
+
+`swayidle` watches for touch/keyboard/mouse activity:
+
+1. After `IDLE_DIM_SEC` — backlight dims to `IDLE_DIM_PERCENT`
+2. After `IDLE_OFF_SEC` — backlight fully off, and a black `swaylock` overlay starts so the wake touch does not click into Home Assistant
+3. On any input — backlight restores and the lock is dismissed
+
+Set `IDLE_ENABLED=0` to disable. Test manually:
+
+```bash
+backlight-control.sh status
+backlight-control.sh dim
+backlight-control.sh off
+backlight-control.sh on
+```
 
 ### Display rotation
 
@@ -82,6 +106,7 @@ getty@tty1 autologin
   → ~/.bash_profile starts labwc
     → labwc autostart
       → squeekboard
+      → display-idle.sh (swayidle dim/off/wake)
       → firefox-kiosk.sh → https://home.whigham.me/?kiosk
 ```
 
@@ -93,11 +118,15 @@ Firefox uses a dedicated profile (`~/.mozilla/firefox/ha-kiosk`) with browser ch
 setup.sh                 # installer (run on the Pi)
 config.env.example       # defaults / template
 files/
-  labwc/autostart        # OSK + browser + rotation
+  labwc/autostart        # OSK + idle + browser + rotation
   labwc/rc.xml           # maximize Firefox, no decorations
   labwc/environment      # Wayland env
   firefox-kiosk.sh       # Firefox restart loop
   firefox-profile/       # prefs + userChrome.css
+  backlight-control.sh   # sysfs backlight dim/off/on
+  display-idle.sh        # swayidle wrapper
+  idle-off.sh / idle-wake.sh
+  udev/                  # video-group write access to backlight
   getty-autologin.conf   # tty1 autologin drop-in
   bash_profile_snippet.sh
   ha-kiosk-session.service  # optional alternate unit (disabled by default)
@@ -113,6 +142,8 @@ files/
 | OSK never appears | Do not use Chromium `--kiosk` / compositor fullscreen. Confirm `squeekboard` is running: `pgrep -a squeekboard`. |
 | Connect not paired | `rpi-connect signin` as the kiosk user after a graphical session is up. |
 | Change URL | Edit `/etc/ha-pi-kiosk/config.env`, then reboot (or kill/restart Firefox). |
+| Screen never dims/off | Check `pgrep -a swayidle`, `backlight-control.sh status`, and that the user is in group `video`. |
+| Wake touch still clicks HA | Confirm `swaylock` is installed; off-path should start it (`idle-off.sh`). |
 
 ## Out of scope
 

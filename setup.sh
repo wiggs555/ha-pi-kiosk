@@ -28,6 +28,10 @@ KIOSK_URL="${KIOSK_URL:-https://home.whigham.me/?kiosk}"
 DISPLAY_OUTPUT="${DISPLAY_OUTPUT:-DSI-1}"
 DISPLAY_ROTATION="${DISPLAY_ROTATION:-normal}"
 KIOSK_USER="${KIOSK_USER:-$USER}"
+IDLE_ENABLED="${IDLE_ENABLED:-1}"
+IDLE_DIM_SEC="${IDLE_DIM_SEC:-120}"
+IDLE_OFF_SEC="${IDLE_OFF_SEC:-300}"
+IDLE_DIM_PERCENT="${IDLE_DIM_PERCENT:-20}"
 
 id "$KIOSK_USER" >/dev/null 2>&1 || die "user '$KIOSK_USER' does not exist"
 KIOSK_UID="$(id -u "$KIOSK_USER")"
@@ -37,6 +41,7 @@ KIOSK_HOME="$(getent passwd "$KIOSK_USER" | cut -d: -f6)"
 info "Kiosk user: $KIOSK_USER (uid $KIOSK_UID)"
 info "URL: $KIOSK_URL"
 info "Display: $DISPLAY_OUTPUT rotation=$DISPLAY_ROTATION"
+info "Idle: enabled=$IDLE_ENABLED dim=${IDLE_DIM_SEC}s off=${IDLE_OFF_SEC}s dim%=${IDLE_DIM_PERCENT}"
 
 # ---------------------------------------------------------------------------
 # Packages
@@ -54,6 +59,8 @@ PACKAGES=(
   seatd
   wlr-randr
   squeekboard
+  swayidle
+  swaylock
   "$FIREFOX_PKG"
   fonts-liberation
   fonts-noto-core
@@ -76,6 +83,10 @@ KIOSK_URL=${KIOSK_URL}
 DISPLAY_OUTPUT=${DISPLAY_OUTPUT}
 DISPLAY_ROTATION=${DISPLAY_ROTATION}
 KIOSK_USER=${KIOSK_USER}
+IDLE_ENABLED=${IDLE_ENABLED}
+IDLE_DIM_SEC=${IDLE_DIM_SEC}
+IDLE_OFF_SEC=${IDLE_OFF_SEC}
+IDLE_DIM_PERCENT=${IDLE_DIM_PERCENT}
 EOF
 sudo chmod 644 /etc/ha-pi-kiosk/config.env
 
@@ -124,6 +135,34 @@ sudo install -o "$KIOSK_USER" -g "$KIOSK_USER" -m 755 \
 
 info "Installing firefox-kiosk launcher"
 sudo install -m 755 "${FILES_DIR}/firefox-kiosk.sh" /usr/local/bin/firefox-kiosk.sh
+
+info "Installing display idle / backlight helpers"
+sudo mkdir -p /usr/local/lib/ha-pi-kiosk
+sudo install -m 755 "${FILES_DIR}/backlight-control.sh" /usr/local/bin/backlight-control.sh
+sudo install -m 755 "${FILES_DIR}/display-idle.sh" /usr/local/bin/display-idle.sh
+sudo install -m 755 "${FILES_DIR}/idle-off.sh" /usr/local/lib/ha-pi-kiosk/idle-off.sh
+sudo install -m 755 "${FILES_DIR}/idle-wake.sh" /usr/local/lib/ha-pi-kiosk/idle-wake.sh
+
+info "Installing backlight udev rules"
+sudo install -m 644 \
+  "${FILES_DIR}/udev/99-ha-pi-kiosk-backlight.rules" \
+  /etc/udev/rules.d/99-ha-pi-kiosk-backlight.rules
+sudo udevadm control --reload-rules 2>/dev/null || true
+sudo udevadm trigger --subsystem-match=backlight 2>/dev/null || true
+# Apply perms immediately for the current boot
+if [[ -d /sys/class/backlight ]]; then
+  for bl in /sys/class/backlight/*; do
+    [[ -d "$bl" ]] || continue
+    if [[ -f "$bl/brightness" ]]; then
+      sudo chgrp video "$bl/brightness" 2>/dev/null || true
+      sudo chmod g+w "$bl/brightness" 2>/dev/null || true
+    fi
+    if [[ -f "$bl/bl_power" ]]; then
+      sudo chgrp video "$bl/bl_power" 2>/dev/null || true
+      sudo chmod g+w "$bl/bl_power" 2>/dev/null || true
+    fi
+  done
+fi
 
 info "Seeding Firefox kiosk profile"
 PROFILE_DIR="${KIOSK_HOME}/.mozilla/firefox/ha-kiosk"
@@ -274,6 +313,7 @@ ha-pi-kiosk setup complete
   Display:  ${DISPLAY_OUTPUT} (${DISPLAY_ROTATION})
   Browser:  ${FIREFOX_PKG} (maximized, undecorated)
   OSK:      squeekboard
+  Idle:     dim ${IDLE_DIM_SEC}s → off ${IDLE_OFF_SEC}s (enabled=${IDLE_ENABLED})
 
 Next steps:
   1. Ensure HACS "Kiosk Mode" is installed on Home Assistant so ?kiosk works.
@@ -284,8 +324,8 @@ Next steps:
      Open the printed URL and approve with your Raspberry Pi ID account.
   4. Sign into Home Assistant on the panel (squeekboard) or via Connect screen share.
 
-To change the URL or rotation later, edit /etc/ha-pi-kiosk/config.env and reboot
-(rotation also updates on the next labwc autostart).
+To change the URL, rotation, or idle timings later, edit /etc/ha-pi-kiosk/config.env
+and reboot (or restart the labwc session).
 ------------------------------------------------------------------
 EOF
 

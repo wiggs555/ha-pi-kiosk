@@ -1,0 +1,5 @@
+# Allow the video group (kiosk user) to adjust DSI panel backlight brightness.
+SUBSYSTEM=="backlight", ACTION=="add|change", RUN+="/bin/chgrp video /sys/class/backlight/%k/brightness"
+SUBSYSTEM=="backlight", ACTION=="add|change", RUN+="/bin/chmod g+w /sys/class/backlight/%k/brightness"
+SUBSYSTEM=="backlight", ACTION=="add|change", TEST=="/sys/class/backlight/%k/bl_power", RUN+="/bin/chgrp video /sys/class/backlight/%k/bl_power"
+SUBSYSTEM=="backlight", ACTION=="add|change", TEST=="/sys/class/backlight/%k/bl_power", RUN+="/bin/chmod g+w /sys/class/backlight/%k/bl_power"
