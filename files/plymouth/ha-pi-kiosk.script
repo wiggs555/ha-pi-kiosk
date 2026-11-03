@@ -1,0 +1,56 @@
+# Center images/logo.png on black, scaled to fit without stretching.
+# logo.png is installed next to this script by setup.sh.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+logo_image = Image("logo.png");
+logo_sprite = Sprite();
+placed_w = 0;
+placed_h = 0;
+
+fun place_logo()
+  {
+    screen_w = Window.GetWidth();
+    screen_h = Window.GetHeight();
+    if (screen_w >= 1)
+      {
+        if (screen_h >= 1)
+          {
+            resize = 0;
+            if (screen_w != placed_w)
+              {
+                resize = 1;
+              }
+            if (screen_h != placed_h)
+              {
+                resize = 1;
+              }
+            if (resize == 1)
+              {
+                image_w = logo_image.GetWidth();
+                image_h = logo_image.GetHeight();
+                scale_w = screen_w / image_w;
+                scale_h = screen_h / image_h;
+                if (scale_w < scale_h)
+                  {
+                    scale = scale_w;
+                  }
+                else
+                  {
+                    scale = scale_h;
+                  }
+                scaled = logo_image.Scale(image_w * scale, image_h * scale);
+                logo_sprite.SetImage(scaled);
+                logo_sprite.SetZ(-100);
+                placed_w = screen_w;
+                placed_h = screen_h;
+              }
+            logo_sprite.SetX(Window.GetX() + (screen_w - logo_sprite.GetImage().GetWidth()) / 2);
+            logo_sprite.SetY(Window.GetY() + (screen_h - logo_sprite.GetImage().GetHeight()) / 2);
+          }
+      }
+  }
+
+place_logo();
+Plymouth.SetRefreshFunction(place_logo);
