@@ -2,7 +2,7 @@
 
 Lightweight setup script that turns a **Raspberry Pi 4 (2GB)** running **Raspberry Pi OS Lite (64-bit)** into a wall panel for Home Assistant on the **official 7″ Touch Display**.
 
-On boot the Pi auto-logs in, starts a minimal **labwc** Wayland session, launches **Firefox** to your HA dashboard (with HA Kiosk Mode), and runs **squeekboard** for on-screen text input. **SSH** and **Raspberry Pi Connect** stay available for remote access.
+On boot the Pi shows the logo from `images/logo.png`, auto-logs in, starts a minimal **labwc** Wayland session, launches **Firefox** to your HA dashboard (with HA Kiosk Mode), and runs **squeekboard** for on-screen text input. **SSH** and **Raspberry Pi Connect** stay available for remote access.
 
 ## What you get
 
@@ -12,6 +12,7 @@ On boot the Pi auto-logs in, starts a minimal **labwc** Wayland session, launche
 | Firefox maximized | Fullscreen look without compositor `--kiosk` (so the OSK still works) |
 | squeekboard | On-screen keyboard when a text field is focused |
 | Idle backlight | Dim after 2 min, off after 5 min; touch wakes (wake tap swallowed) |
+| Boot splash | `images/logo.png`, centered, until labwc starts |
 | SSH | Enabled for shell access |
 | Raspberry Pi Connect | Installed; you sign in once for remote shell/screen |
 
@@ -86,6 +87,17 @@ The official 7″ panel is landscape 800×480. If your mount needs a different o
 - Applies rotation in labwc via `wlr-randr` on session start
 - Adds `video=DSI-1:panel_orientation=...` to `/boot/firmware/cmdline.txt` for console/splash alignment
 
+### Boot splash
+
+Boot shows `images/logo.png` centered on a black background. Plymouth scales the square logo to fit the 800×480 panel without stretching it. The frame stays up until labwc takes the display, and the same logo is shown on shutdown.
+
+`setup.sh` installs the `ha-pi-kiosk` Plymouth theme, rebuilds the initramfs, and sets:
+
+- `quiet splash plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0` on `cmdline.txt`
+- `disable_splash=1` in `config.txt` (skips the rainbow square)
+
+Reboot after `./setup.sh` to see it. After replacing `images/logo.png`, re-run `./setup.sh` so the new image is copied into the initramfs.
+
 ## After setup
 
 1. Reboot when prompted (or `sudo reboot`).
@@ -102,12 +114,14 @@ The official 7″ panel is landscape 800×480. If your mount needs a different o
 ## How boot works
 
 ```
-getty@tty1 autologin
-  → ~/.bash_profile starts labwc
-    → labwc autostart
-      → squeekboard
-      → display-idle.sh (swayidle dim/off/wake)
-      → firefox-kiosk.sh → https://home.whigham.me/?kiosk
+firmware (rainbow disabled)
+  → Plymouth (images/logo.png, frame kept)
+    → getty@tty1 autologin
+      → ~/.bash_profile starts labwc
+        → labwc autostart
+          → squeekboard
+          → display-idle.sh (swayidle dim/off/wake)
+          → firefox-kiosk.sh → https://home.whigham.me/?kiosk
 ```
 
 Firefox uses a dedicated profile (`~/.mozilla/firefox/ha-kiosk`) with browser chrome hidden via `userChrome.css`. labwc maximizes the window with decorations off — it looks fullscreen but does **not** use true compositor fullscreen, which would block the on-screen keyboard.
@@ -117,6 +131,7 @@ Firefox uses a dedicated profile (`~/.mozilla/firefox/ha-kiosk`) with browser ch
 ```
 setup.sh                 # installer (run on the Pi)
 config.env.example       # defaults / template
+images/logo.png          # boot splash artwork
 files/
   labwc/autostart        # OSK + idle + browser + rotation
   labwc/rc.xml           # maximize Firefox, no decorations
@@ -130,6 +145,7 @@ files/
   getty-autologin.conf   # tty1 autologin drop-in
   bash_profile_snippet.sh
   ha-kiosk-session.service  # optional alternate unit (disabled by default)
+  plymouth/              # boot logo theme and retain-splash drop-in
 ```
 
 ## Troubleshooting
@@ -144,6 +160,7 @@ files/
 | Change URL | Edit `/etc/ha-pi-kiosk/config.env`, then reboot (or kill/restart Firefox). |
 | Screen never dims/off | Check `pgrep -a swayidle`, `backlight-control.sh status`, and that the user is in group `video`. |
 | Wake touch still clicks HA | Confirm `swaylock` is installed; off-path should start it (`idle-off.sh`). |
+| Boot log still scrolls | Confirm `quiet splash` is in `/boot/firmware/cmdline.txt`, `plymouth-set-default-theme` prints `ha-pi-kiosk`, and `disable_splash=1` is in `/boot/firmware/config.txt`. Re-run `./setup.sh` and reboot. |
 
 ## Out of scope
 

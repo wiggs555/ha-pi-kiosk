@@ -42,6 +42,7 @@ info "Kiosk user: $KIOSK_USER (uid $KIOSK_UID)"
 info "URL: $KIOSK_URL"
 info "Display: $DISPLAY_OUTPUT rotation=$DISPLAY_ROTATION"
 info "Idle: enabled=$IDLE_ENABLED dim=${IDLE_DIM_SEC}s off=${IDLE_OFF_SEC}s dim%=${IDLE_DIM_PERCENT}"
+info "Splash: images/logo.png"
 
 # ---------------------------------------------------------------------------
 # Packages
@@ -69,6 +70,13 @@ PACKAGES=(
 
 if apt-cache show rpi-connect-wayvnc >/dev/null 2>&1; then
   PACKAGES+=(rpi-connect-wayvnc)
+fi
+
+# Plymouth plus the Pi pix theme (raspi-config checks for pix before enabling splash).
+if apt-cache show rpd-plym-splash >/dev/null 2>&1; then
+  PACKAGES+=(rpd-plym-splash)
+else
+  PACKAGES+=(plymouth)
 fi
 
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}"
@@ -256,7 +264,17 @@ map_orientation() {
   esac
 }
 
-ORIENTATION="$(map_orientation "$DISPLAY_ROTATION")"
+# Append a space-delimited cmdline.txt token once. cmdline.txt must stay one line.
+ensure_cmdline_token() {
+  local token="$1"
+  local current
+  [[ -n "${CMDLINE:-}" && -f "$CMDLINE" ]] || return 0
+  current="$(tr -d '\n' <"$CMDLINE" | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//')"
+  if ! printf ' %s ' "$current" | grep -q -F " ${token} "; then
+    echo "${current} ${token}" | sudo tee "$CMDLINE" >/dev/null
+  fi
+}
+
 CMDLINE=""
 for candidate in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
   if [[ -f "$candidate" ]]; then
@@ -264,6 +282,22 @@ for candidate in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
     break
   fi
 done
+
+if [[ -n "$CMDLINE" ]]; then
+  if command -v raspi-config >/dev/null 2>&1; then
+    info "Enabling Plymouth boot splash"
+    # Adds "quiet splash plymouth.ignore-serial-consoles" when missing.
+    sudo raspi-config nonint do_boot_splash 0 || true
+  fi
+  info "Ensuring splash kernel parameters in $CMDLINE"
+  for token in quiet splash plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0; do
+    ensure_cmdline_token "$token"
+  done
+else
+  info "cmdline.txt not found; skipping splash kernel parameters"
+fi
+
+ORIENTATION="$(map_orientation "$DISPLAY_ROTATION")"
 
 if [[ -n "$CMDLINE" && -n "$ORIENTATION" && "$ORIENTATION" != "normal" ]]; then
   info "Setting panel orientation in $CMDLINE ($ORIENTATION)"
@@ -278,6 +312,51 @@ elif [[ -n "$CMDLINE" && "$ORIENTATION" == "normal" ]]; then
     STRIPPED="$(echo "$CURRENT" | sed -E 's/ *video=DSI-[0-9]:panel_orientation=[^ ]*//g')"
     echo "$STRIPPED" | sudo tee "$CMDLINE" >/dev/null
   fi
+fi
+
+CONFIGTXT=""
+for candidate in /boot/firmware/config.txt /boot/config.txt; do
+  if [[ -f "$candidate" ]]; then
+    CONFIGTXT="$candidate"
+    break
+  fi
+done
+
+if [[ -n "$CONFIGTXT" ]]; then
+  if grep -Eq '^[[:space:]]*disable_splash=1[[:space:]]*(#.*)?$' "$CONFIGTXT"; then
+    :
+  elif grep -Eq '^[[:space:]]*disable_splash=' "$CONFIGTXT"; then
+    info "Setting disable_splash=1 in $CONFIGTXT"
+    sudo sed -i -E 's/^[[:space:]]*disable_splash=.*/disable_splash=1/' "$CONFIGTXT"
+  else
+    info "Disabling firmware rainbow splash in $CONFIGTXT"
+    echo 'disable_splash=1' | sudo tee -a "$CONFIGTXT" >/dev/null
+  fi
+else
+  info "config.txt not found; skipping disable_splash"
+fi
+
+info "Installing Plymouth boot splash"
+[[ -f "${SCRIPT_DIR}/images/logo.png" ]] || die "images/logo.png not found"
+THEME_DIR=/usr/share/plymouth/themes/ha-pi-kiosk
+sudo mkdir -p "$THEME_DIR" /etc/systemd/system/plymouth-quit.service.d
+sudo install -m 644 \
+  "${FILES_DIR}/plymouth/ha-pi-kiosk.plymouth" \
+  "${THEME_DIR}/ha-pi-kiosk.plymouth"
+sudo install -m 644 \
+  "${FILES_DIR}/plymouth/ha-pi-kiosk.script" \
+  "${THEME_DIR}/ha-pi-kiosk.script"
+sudo install -m 644 "${SCRIPT_DIR}/images/logo.png" "${THEME_DIR}/logo.png"
+sudo install -m 644 \
+  "${FILES_DIR}/plymouth/retain-splash.conf" \
+  /etc/systemd/system/plymouth-quit.service.d/retain-splash.conf
+sudo systemctl daemon-reload
+
+if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+  info "Setting Plymouth theme (rebuilding initramfs; this can take a few minutes)"
+  sudo plymouth-set-default-theme --rebuild-initrd ha-pi-kiosk
+else
+  die "plymouth-set-default-theme not found; install plymouth and re-run setup.sh"
 fi
 
 # ---------------------------------------------------------------------------
@@ -314,6 +393,7 @@ ha-pi-kiosk setup complete
   Browser:  ${FIREFOX_PKG} (maximized, undecorated)
   OSK:      squeekboard
   Idle:     dim ${IDLE_DIM_SEC}s → off ${IDLE_OFF_SEC}s (enabled=${IDLE_ENABLED})
+  Splash:   images/logo.png (until labwc starts; also on shutdown)
 
 Next steps:
   1. Ensure HACS "Kiosk Mode" is installed on Home Assistant so ?kiosk works.
@@ -326,6 +406,7 @@ Next steps:
 
 To change the URL, rotation, or idle timings later, edit /etc/ha-pi-kiosk/config.env
 and reboot (or restart the labwc session).
+To change the boot logo, replace images/logo.png and re-run ./setup.sh, then reboot.
 ------------------------------------------------------------------
 EOF
 

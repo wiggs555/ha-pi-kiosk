@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=HA Pi Kiosk
+Description=Home Assistant kiosk boot logo
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/ha-pi-kiosk
+ScriptFile=/usr/share/plymouth/themes/ha-pi-kiosk/ha-pi-kiosk.script
