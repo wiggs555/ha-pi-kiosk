@@ -95,6 +95,8 @@ Boot shows `images/logo.png` centered on a black background. Plymouth scales the
 
 - `quiet splash plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0` on `cmdline.txt`
 - `disable_splash=1` in `config.txt` (skips the rainbow square)
+- tty1 autologin uses `agetty --skip-login --noissue` and does not clear the VT, so the `login:` banner is not drawn over the logo
+- `~/.hushlogin` suppresses the "Last login" line and MOTD before labwc starts
 
 Reboot after `./setup.sh` to see it. After replacing `images/logo.png`, re-run `./setup.sh` so the new image is copied into the initramfs.
 
@@ -161,6 +163,7 @@ files/
 | Screen never dims/off | Check `pgrep -a swayidle`, `backlight-control.sh status`, and that the user is in group `video`. |
 | Wake touch still clicks HA | Confirm `swaylock` is installed; off-path should start it (`idle-off.sh`). |
 | Boot log still scrolls | Confirm `quiet splash` is in `/boot/firmware/cmdline.txt`, `plymouth-set-default-theme` prints `ha-pi-kiosk`, and `disable_splash=1` is in `/boot/firmware/config.txt`. Re-run `./setup.sh` and reboot. |
+| Login text after the logo | Re-run `./setup.sh` so `getty@tty1` uses `--skip-login --noissue`, `~/.hushlogin` exists, and `/etc/profile.d/00-ha-pi-kiosk.sh` is installed. Then reboot. |
 
 ## Out of scope
 
