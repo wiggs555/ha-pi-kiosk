@@ -236,6 +236,15 @@ fi
 } | sudo tee -a "$PROFILE" >/dev/null
 sudo chown "$KIOSK_USER:$KIOSK_USER" "$PROFILE"
 
+# login(1) prints "Last login" and the MOTD after autologin. An empty
+# ~/.hushlogin suppresses those for this user (console and SSH).
+sudo -u "$KIOSK_USER" touch "${KIOSK_HOME}/.hushlogin"
+
+# Source the session start before other profile.d scripts (Wi-Fi country,
+# default-password warning) can write to tty1.
+sudo install -m 644 "${FILES_DIR}/bash_profile_snippet.sh" \
+  /etc/profile.d/00-ha-pi-kiosk.sh
+
 # Ensure non-bash login shells still pick up the kiosk start
 PROFILE_DOT="${KIOSK_HOME}/.profile"
 sudo -u "$KIOSK_USER" touch "$PROFILE_DOT"
